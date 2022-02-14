@@ -5,18 +5,29 @@ from geopy.geocoders import Nominatim
 import datetime
 import paho.mqtt.client as mqtt
 
-minrange = 50.0
-max_alt = 100000
-HOST = "10.0.0.229"
-PORT = 30047
-home = (42.52690, -71.42418)
-flightlimit = 300
-MQTT_HOST = "10.0.0.229"
-RAISE_NOTICE = True
+
+"""
+Configuration
+"""
+minrange = 50.0 #Fence Range
+max_alt = 100000 #Fence Altitude
+home = (42.52, -71.42) #Fence center
+flightlimit = 300 #Time out after last sighting of an aircraft before we start a new flight
+
+HOST = "10.0.0.229" #Tar1090 Host
+PORT = 30047 #Tar1090 Port
+
+MQTT_HOST = "10.0.0.229" #Host for MQTT
+MQTT_PORT = 1883
+RAISE_NOTICE = True #Publish messages to MQTT?
 
 
 
+"""
+Globals.
 
+I should probably make this all a class and stuff these in as class members.
+"""
 seen = {}
 mqttclient = mqtt.Client()
 
@@ -74,7 +85,7 @@ def get_flightnum(msghex: str) -> int:
 def startmqtt():
     if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
         mqttclient.on_log = on_log
-        mqttclient.connect(MQTT_HOST, keepalive=60)
+        mqttclient.connect(host=MQTT_HOST, port=MQTT_PORT ,keepalive=60)
 
 def get_geocode(lat, lon):
     geolocator = Nominatim(user_agent="planefencepytest")

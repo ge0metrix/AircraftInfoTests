@@ -7,14 +7,18 @@ import paho.mqtt.client as mqtt
 """
 CONFIG
 """
-minrange = 50.0
-max_alt = 100000
-HOST = "10.0.0.229"
-PORT = 30047
-home = (42.52690, -71.42418)
-flightlimit = 300
-MQTT_HOST = "10.0.0.229"
-RAISE_NOTICE = True
+
+minrange = 50.0 #Fence Range
+max_alt = 100000 #Fence Altitude
+home = (42.52, -71.42) #Fence center
+
+HOST = "10.0.0.229" #Tar1090 Host
+PORT = 30047 #Tar1090 Port
+
+MQTT_HOST = "10.0.0.229" #Host for MQTT
+MQTT_PORT = 1883
+RAISE_NOTICE = True #Publish messages to MQTT?
+
 
 """
 GLOBALS
@@ -42,8 +46,8 @@ def check_alert(icao:str):
 
 def notify(msg):
     if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
-        mqttclient = mqtt.Client(client_id="pyPlaneAlert")
-        mqttclient.connect(MQTT_HOST)
+        mqttclient = mqtt.Client(client_id="PlaneAlert")
+        mqttclient.connect(MQTT_HOST, port=MQTT_PORT, keepalive=60)
         print(json.dumps(msg, default=str))
         mqttclient.publish("planealert/notifications",json.dumps(msg, default=str))
     return
