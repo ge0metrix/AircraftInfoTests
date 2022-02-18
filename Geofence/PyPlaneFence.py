@@ -12,7 +12,7 @@ Configuration
 minrange = 50.0 #Fence Range
 max_alt = 100000 #Fence Altitude
 home = (42.52, -71.42) #Fence center
-flightlimit = 300 #Time out after last sighting of an aircraft before we start a new flight
+flightlimit = 60 #Time out after last sighting of an aircraft before we start a new flight
 
 HOST = "10.0.0.229" #Tar1090 Host
 PORT = 30047 #Tar1090 Port
@@ -20,8 +20,6 @@ PORT = 30047 #Tar1090 Port
 MQTT_HOST = "10.0.0.229" #Host for MQTT
 MQTT_PORT = 1883
 RAISE_NOTICE = True #Publish messages to MQTT?
-
-
 
 """
 Globals.
@@ -32,67 +30,36 @@ seen = {}
 mqttclient = mqtt.Client()
 
 
+def process_msg(msg):
+    planeloc = (msg.get("lat"), msg.get("lon"))
+    dist = distance.distance(home, planeloc).miles
+    hex = msg.get("hex")
+    notifystart=False
+    if (dist <= minrange) and (msg.get("alt_geom",0) <= max_alt):
 
-def process_msg(msg: dict):
-    msg["fence"] = 0
-    
-    planeloc = (msg["lat"], msg["lon"])
-    
-    dist = distance.distance(home, planeloc)
-    
-    if (dist.miles <= minrange) and (msg["alt_geom"] <= max_alt):
-        flightnum = get_flightnum(msg["hex"])
-    
-        msg["fence"] = 1
-    
-        if not (is_seen_before(msg["hex"], flightnum)):
-            if not msg["hex"] in seen:
-                seen[msg["hex"]] = []
-            seen[msg["hex"]].insert(flightnum, msg)
-            seen[msg["hex"]][flightnum]["firstseen"] = datetime.datetime.now()    
-            #seen[msg["hex"]][flightnum]["firstseenear"] = get_geocode(msg["lat"], msg["lon"])
-            msg["notify"] = 1
-        seen[msg["hex"]][flightnum]["lastseen"] = datetime.datetime.now()
-    
-        if not "points" in seen[msg["hex"]][flightnum]:
-            seen[msg["hex"]][flightnum]["points"]=[]
-    
-        datapoint = { 'lat': msg["lat"], 'lon': msg["lon"], 'alt': msg["alt_geom"], 'now': msg["now"] }
-        seen[msg["hex"]][flightnum]["points"].append(datapoint)
-        seen[msg["hex"]][flightnum]["NumPoints"] = len(seen[msg["hex"]][flightnum]["points"])
-        #print("IN RANGE", msg["hex"], msg["now"] ,msg["lat"], msg["lon"], dist.mi, msg["alt_geom"],  msg["fence"], seen[msg["hex"]][flightnum]["NumPoints"])
-    else:
-        pass
-        #print("OUT OF RANGE", msg["hex"], msg["now"] ,msg["lat"], msg["lon"], dist.mi, msg["alt_geom"],  msg["fence"])
-    #return msg
+        if seen.get(hex) == None:
+            seen[hex] = msg
+            seen[hex]["points"] = []
+            notifystart=True
+            seen[hex]["seenNear"] = get_geocode(msg.get("lat"),  msg.get("lon"))
+            
 
-def is_seen_before(msghex: str, flightnum: int) -> bool:
-    if msghex in seen:
-        last_seen: datetime = seen[msghex][flightnum]["lastseen"]
-        now: datetime = datetime.datetime.now()
-        dur: datetime.timedelta = now - last_seen
-        seconds = dur.total_seconds()
-        if seconds <= flightlimit:
-            return True
-    return False
-
-
-def get_flightnum(msghex: str) -> int:
-    if(is_seen_before(msghex, 0)):
-        return len(seen[msghex])-1
-    return 0
-
-def startmqtt():
-    if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
-        mqttclient.on_log = on_log
-        mqttclient.connect(host=MQTT_HOST, port=MQTT_PORT ,keepalive=60)
+        seen[hex]["lastSeen"] = datetime.datetime.now()
+        datapoint = { 'lat': msg.get("lat"), 'lon': msg.get("lon"), 'alt': msg.get("alt_geom"), 'now': msg.get("now") }
+        seen[hex]["points"].append(datapoint)
+        if notifystart:
+            notify_start(seen[hex])
 
 def get_geocode(lat, lon):
     geolocator = Nominatim(user_agent="planefencepytest")
     geolocator.timeout = 30
     location = geolocator.reverse("{}, {}".format(lat,lon))
-    print(location.raw)
     return location.raw
+
+def startmqtt():
+    if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
+        mqttclient.on_log = on_log
+        mqttclient.connect(host=MQTT_HOST, port=MQTT_PORT ,keepalive=60)
 
 def notify_start(msg):
     if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
@@ -100,30 +67,33 @@ def notify_start(msg):
         print("Alerting Start {}".format(msg["hex"]))
         mqttclient.publish("planefence/notifications",json.dumps(msg, default=str))
         mqttclient.disconnect()
-    return
 
 def notify_end(msg):
     if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
         startmqtt()
-        print("Alerting End {}".format(msg[-1]["hex"]))
+        print("Alerting End {}".format(msg["hex"]))
         mqttclient.publish("planefence/endnotifications",json.dumps(msg, default=str))
         mqttclient.disconnect()
-    return
 
 def expireflights():
+    ended = []
     for icao in seen:
-        if seen.get(icao)[-1].get("lastseen") < (datetime.datetime.now() - datetime.timedelta(seconds=flightlimit)) and seen.get(icao)[-1].get("ended") != 1:
-            notify_end(seen.get(icao))
-            seen.get(icao)[-1]["ended"]=1
-    return
+        print("{} last seen at {}".format(icao, seen.get(icao).get("lastSeen")))
+        if seen.get(icao).get("lastSeen") < (datetime.datetime.now() - datetime.timedelta(seconds=flightlimit)) and seen.get(icao).get("ended") != 1:
+            ended.append(icao)
+
+    for x in ended:
+        tmp = seen.pop(x)
+        notify_end(tmp)
 
 
 def on_log(mqttc, obj, level, string):
     print(string)
+#    pass
 
 def __main__():
     i = 0
-    lst = datetime.datetime.now()
+    lastCleanup = datetime.datetime.now()
     
     startmqtt()
 
@@ -140,18 +110,13 @@ def __main__():
                 print("----------------------")
                 continue
             process_msg(msg)
-            if "notify" in msg:
-                print(msg.get("hex"),"Alerted")
-                notify_start(msg)
-            i = i + 1
-            if i % 1000 == 0 or (datetime.datetime.now()-lst).seconds >= flightlimit:
-                lst=datetime.datetime.now()
+            
+            if (datetime.datetime.now()-lastCleanup).seconds >= flightlimit:
+                lastCleanup=datetime.datetime.now()
                 #print(json.dumps(seen, indent=4, default=str))
-                filename = "data{}.json".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-                print(filename)
+                print("Cleaning up at {}".format(lastCleanup))
                 expireflights()
-                #with open(filename, 'w') as jsf:
-                #    json.dump(seen, jsf, default=str)
+
 
 
 
