@@ -1,10 +1,12 @@
 
 from calendar import day_abbr
+from time import time
 import paho.mqtt.client as mqtt
 import json
 import datetime
 import logging
 import traceback
+import time
 
 
 logger = logging.getLogger()
@@ -22,7 +24,7 @@ def on_message(mqttc, obj, msg):
 def on_PlaneAlert(client, obj, msg):
     try:
         data = json.loads(msg.payload.decode('utf8'))
-        logline = "[{}] \t {} \t ALERT!!!! \t {}".format(datetime.datetime.now(), data.get("ICAO"), data.get("Operator"))
+        logline = "[{}] \t {} \t ALERT!!!! \t {}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), data.get("ICAO"), data.get("Operator"))
         logger.info(logline)
         print(logline)
     except Exception as e:
@@ -38,21 +40,22 @@ def on_PlaneFence(client, obj, msg):
             logline = "[{}] \t {} \t ENTERING FENCE \t {} \t {} \t {} \t {}".format(
                 datetime.datetime.now(), 
                 data.get("hex"), 
-                datetime.datetime.fromtimestamp(data.get("now")),
+                datetime.datetime.fromtimestamp(data.get("now")).strftime("%Y-%m-%d %H:%M:%S"),
                 data.get("r"), 
                 data.get("t"), 
-                data.get("seenNear").get("address").get("town")
+                data.get("seenNear").get("display_name")
                 )
             #logger.info(logline)
             print(logline)
         if topic == "planefence/endnotifications":
-            logline = "[{}] \t {} \t LEAVING FENCE \t {} \t {} \t {} \t {}".format(
+            logline = "[{}] \t {} \t LEAVING FENCE  \t {} \t {} \t {} \t {} \t {}".format(
                 datetime.datetime.now(), 
                 data.get("hex"), 
-                data.get("lastSeen"),
+                datetime.datetime.strptime(data.get("lastSeen"), '%Y-%m-%d %H:%M:%S.%f').strftime("%Y-%m-%d %H:%M:%S"),
                 data.get("r"), 
                 data.get("t"), 
-                data.get("seenNear").get("address").get("town")
+                data.get("lastSeenNear").get("display_name"), 
+                len(data.get("points"))
                 )
 
 
