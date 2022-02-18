@@ -9,8 +9,8 @@ import paho.mqtt.client as mqtt
 """
 Configuration
 """
-minrange = 50.0 #Fence Range
-max_alt = 100000 #Fence Altitude
+minrange = 10.0 #Fence Range
+max_alt = 10000 #Fence Altitude
 home = (42.52, -71.42) #Fence center
 flightlimit = 60 #Time out after last sighting of an aircraft before we start a new flight
 
@@ -46,6 +46,7 @@ def process_msg(msg):
 
         seen[hex]["lastSeen"] = datetime.datetime.now()
         datapoint = { 'lat': msg.get("lat"), 'lon': msg.get("lon"), 'alt': msg.get("alt_geom"), 'now': msg.get("now") }
+        print(hex, len(seen[hex]["points"]), json.dumps(datapoint, default=str))
         seen[hex]["points"].append(datapoint)
         if notifystart:
             notify_start(seen[hex])
@@ -53,7 +54,7 @@ def process_msg(msg):
 def get_geocode(lat, lon):
     geolocator = Nominatim(user_agent="planefencepytest")
     geolocator.timeout = 30
-    location = geolocator.reverse("{}, {}".format(lat,lon))
+    location = geolocator.reverse("{}, {}".format(lat,lon), zoom=10)
     return location.raw
 
 def startmqtt():
@@ -72,6 +73,9 @@ def notify_end(msg):
     if RAISE_NOTICE and MQTT_HOST != "" and MQTT_HOST != None:
         startmqtt()
         print("Alerting End {}".format(msg["hex"]))
+        lat = msg["points"][-1]["lat"]
+        lon = msg["points"][-1]["lon"]
+        msg["lastSeenNear"] = get_geocode(lat,lon)
         mqttclient.publish("planefence/endnotifications",json.dumps(msg, default=str))
         mqttclient.disconnect()
 
@@ -103,6 +107,8 @@ def __main__():
         while True:
             try:
                 line = f.readline()
+                if len(line)==0:
+                    s.connect((HOST, PORT))
                 msg = json.loads(line)
             except Exception as e:
                 print(line)
