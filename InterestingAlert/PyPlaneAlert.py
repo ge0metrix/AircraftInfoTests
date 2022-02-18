@@ -79,6 +79,7 @@ def __main__():
                 if (aircraft != None):
                     if ( seconds > 300 or seconds == 0 ):
                         #ALERT!
+                        aircraft["msg"]=msg
                         notify(aircraft)
                         print(aircraft)
                     alerted[icao] = datetime.datetime.now()
