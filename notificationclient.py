@@ -1,8 +1,10 @@
 
+from calendar import day_abbr
 import paho.mqtt.client as mqtt
 import json
 import datetime
 import logging
+import traceback
 
 
 logger = logging.getLogger()
@@ -32,15 +34,34 @@ def on_PlaneFence(client, obj, msg):
         topic = str(msg.topic)
         data = json.loads(msg.payload.decode('utf8'))
         if topic == "planefence/notifications":
-            logline = "[{}] \t {} \t ENTERING FENCE \t {}".format(datetime.datetime.now(), data.get("hex"), datetime.datetime.fromtimestamp(data.get("now")))
-            logger.info(logline)
+            #logline = "[{}] \t {} \t ENTERING FENCE \t {}".format(datetime.datetime.now(), data.get("hex"), datetime.datetime.fromtimestamp(data.get("now")))
+            logline = "[{}] \t {} \t ENTERING FENCE \t {} \t {} \t {} \t {}".format(
+                datetime.datetime.now(), 
+                data.get("hex"), 
+                datetime.datetime.fromtimestamp(data.get("now")),
+                data.get("r"), 
+                data.get("t"), 
+                data.get("seenNear").get("address").get("town")
+                )
+            #logger.info(logline)
             print(logline)
         if topic == "planefence/endnotifications":
-            logline = "[{}] \t {} \t LEAVING FENCE \t {}".format(datetime.datetime.now(), data[-1].get("hex"), datetime.datetime.fromtimestamp(data[-1].get("now")))
-            logger.info(logline)
+            logline = "[{}] \t {} \t LEAVING FENCE \t {} \t {} \t {} \t {}".format(
+                datetime.datetime.now(), 
+                data.get("hex"), 
+                data.get("lastSeen"),
+                data.get("r"), 
+                data.get("t"), 
+                data.get("seenNear").get("address").get("town")
+                )
+
+
+            #logger.info(logline)
             print(logline)
+            #print(json.dumps(data, indent=2, default=str))
     except Exception as e:
-        logger.warning("Invalid JSON recieved in PlaneFence: {}\r\n{}".format(msg.payload.decode('utf8'), e))
+        logger.warning("Invalid JSON recieved in PlaneFence: {}\r\n".format(msg.payload.decode('utf8')))
+        logger.warning(traceback.format_exc())
         pass
 
 mqttc = mqtt.Client()
