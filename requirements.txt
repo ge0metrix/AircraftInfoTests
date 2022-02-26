@@ -1,0 +1,6 @@
+certifi==2021.10.8
+dnspython==2.2.0
+geographiclib==1.52
+geopy==2.2.0
+paho-mqtt==1.6.1
+pymongo==4.0.1

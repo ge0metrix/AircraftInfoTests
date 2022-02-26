@@ -1,2 +1,7 @@
 /.DS_Store
 /.vscode
+/bin
+/lib
+/include
+pyvenv.cfg
+.env
