@@ -63,6 +63,9 @@ def __main__():
         while True:
             try:
                 line = f.readline()
+                if len(line)==0:
+                    s.connect((HOST, PORT))
+                    continue
                 msg = json.loads(line)
                 icao = msg["hex"]
                 aircraft = check_alert(icao)
